@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Management</title>
+</head>
+<body>
+    <h1>Key Management System</h1>
+
+    <form action="/generate_key" method="post">
+        <label for="num_keys">Number of Keys:</label>
+        <input type="number" name="num_keys" id="num_keys" required>
+
+        <label for="duration">Duration (in days):</label>
+        <input type="number" name="duration" id="duration" required>
+
+        <button type="submit">Generate Keys</button>
+    </form>
+
+  <a href="{{ url_for('view_keys') }}"><button>View Keys</button></a>
+
+
+    <form action="/activate_key" method="post">
+        <label for="key">Activate Key:</label>
+        <input type="text" name="key" id="key" required>
+
+        <button type="submit">Activate Key</button>
+    </form>
+</body>
+</html>

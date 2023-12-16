@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activate Key Form</title>
+</head>
+<body>
+    <h1>Activate Key Form</h1>
+
+    <form action="/activate_key" method="post">
+        <label for="key">Key:</label>
+        <input type="text" name="key" id="key" required>
+
+        <button type="submit">Activate Key</button>
+    </form>
+
+    <a href="{{ url_for('view_keys_route') }}">View Keys</a>
+</body>
+</html>
