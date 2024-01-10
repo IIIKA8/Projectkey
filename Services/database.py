@@ -1,128 +1,89 @@
-from flask import Flask, render_template, request, jsonify, redirect
 import sqlite3
+from datetime import datetime, timedelta
 import random
 import string
-from datetime import datetime, timedelta
 
-app = Flask(__name__)
+DATABASE_NAME = 'keys.db'
 
-# Инициализация базы данных
+def connect_to_database():
+    return sqlite3.connect(DATABASE_NAME)
+
 def init_db():
-    conn = sqlite3.connect('keys.db')
-    cursor = conn.cursor()
+    with sqlite3.connect(DATABASE_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                status INTEGER NOT NULL DEFAULT 0,
+                activation_date TEXT,
+                duration_days INTEGER,
+                activated INTEGER NOT NULL DEFAULT 0
+)
+        ''')
+        conn.commit()
 
-    # Создание таблицы keys
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS keys (
-            key TEXT PRIMARY KEY,
-            duration INTEGER,
-            created_at DATETIME
-        )
-    ''')
-
-    conn.commit()
-    conn.close()
-
-init_db()
-
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/generate_key', methods=['POST'])
-def generate_key():
-    if request.method == 'POST':
-        num_keys = int(request.form['num_keys'])
-        duration = int(request.form['duration'])
-
-        keys_generated = []
+def generate_key(num_keys, duration_days):
+    keys_generated = []
+    with sqlite3.connect(DATABASE_NAME) as conn:
+        cursor = conn.cursor()
         for _ in range(num_keys):
-            key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
+            key = generate_random_key()
+            cursor.execute('''
+                INSERT INTO keys (key, activation_date, duration_days, status, activated)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (key, None, duration_days, 0, 0))
             keys_generated.append(key)
-            # Сохранение ключа в базе данных
-            save_key_to_db(key, duration)
+        conn.commit()
+    return keys_generated
 
-        return jsonify({'keys': keys_generated})
 
-def save_key_to_db(key, duration):
-    conn = sqlite3.connect('keys.db')
-    cursor = conn.cursor()
 
-    cursor.execute('INSERT INTO keys (key, duration, created_at) VALUES (?, ?, ?)',
-                   (key, duration, datetime.now()))
+def activate_key(key):
+    with connect_to_database() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM keys WHERE key = ?', (key,))
+        key_data = cursor.fetchone()
+        if key_data:
+            key_id, _, status, activation_date, duration_days = key_data
+            if status == 0:
+                if activation_date is None:
+                    # Устанавливаем activation_date только при активации
+                    activation_date = datetime.utcnow().isoformat()
+                    cursor.execute('UPDATE keys SET activation_date = ? WHERE key = ?', (activation_date, key))
 
-    conn.commit()
-    conn.close()
+                remaining_time = datetime.fromisoformat(activation_date) + timedelta(
+                    days=duration_days) - datetime.utcnow()
+                remaining_days = remaining_time.days
+                remaining_hours, remainder = divmod(remaining_time.seconds, 3600)
+                remaining_minutes, _ = divmod(remainder, 60)
 
-@app.route('/activate_key_form')
-def activate_key_form():
-    return render_template('activate_key_form.html')
-
-@app.route('/activate_key', methods=['POST'])
-def activate_key():
-    key = request.form['key']
-    result = activate_key_in_db(key)
-    return render_template('activate_key_result.html', result=result)
-
-def activate_key_in_db(key):
-    conn = sqlite3.connect('keys.db')
-    cursor = conn.cursor()
-
-    cursor.execute('SELECT * FROM keys WHERE key = ?', (key,))
-    key_data = cursor.fetchone()
-
-    if key_data:
-        key_info = {'duration': key_data[1], 'created_at': key_data[2]}
-        if key_info['duration'] > 0:
-            key_info['duration'] -= 1
-            update_key_in_db(key, key_info['duration'])
-            return f"Key {key} successfully activated. Remaining duration: {key_info['duration']} days."
+                if remaining_time.total_seconds() > 0:
+                    return f"Ключ активирован! Осталось {remaining_days} дней, {remaining_hours} часов и {remaining_minutes} минут."
+                else:
+                    return f"Ключ истек."
+            else:
+                return "Ключ уже активирован!"
         else:
-            return f"Key {key} has expired."
-    else:
-        return "Invalid key."
+            return "Недействительный ключ."
 
-def update_key_in_db(key, duration):
-    conn = sqlite3.connect('keys.db')
-    cursor = conn.cursor()
+def check_key(key):
+    with connect_to_database() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM keys WHERE key = ?', (key,))
+        result = cursor.fetchone()
+        if result:
+            key_data = {
+                'id': result[0],
+                'key': result[1],
+                'status': result[2],
+                'activation_date': result[3],
+                'duration_days': result[4],
+            }
+            return key_data
+        else:
+            return None
 
-    cursor.execute('UPDATE keys SET duration = ? WHERE key = ?', (duration, key))
-
-    conn.commit()
-    conn.close()
-
-@app.route('/view_keys')
-def view_keys():
-    keys = load_keys_from_db()
-    return render_template('view_keys.html', keys=keys)
-
-def load_keys_from_db():
-    conn = sqlite3.connect('keys.db')
-    cursor = conn.cursor()
-
-    cursor.execute('SELECT * FROM keys')
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    keys = {}
-    for row in rows:
-        key_info = {'duration': row[1], 'created_at': row[2]}
-        keys[row[0]] = key_info
-
-    return keys
-
-@app.route('/clear_keys')
-def clear_keys():
-    conn = sqlite3.connect('keys.db')
-    cursor = conn.cursor()
-
-    cursor.execute('DELETE FROM keys')
-
-    conn.commit()
-    conn.close()
-
-    return redirect('/view_keys')
-
-if __name__ == '__main__':
-    app.run(debug=True)
+def generate_random_key(length=12):
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(characters, k=length))

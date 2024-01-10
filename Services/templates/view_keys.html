@@ -5,6 +5,20 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Keys</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
 </head>
 <body>
     <h1>View Keys</h1>
@@ -12,17 +26,21 @@
     <table>
         <thead>
             <tr>
+                <th>ID</th>
                 <th>Key</th>
                 <th>Duration</th>
-                <th>Activated</th>
+                <th>Activation Date</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
             {% for key, data in keys.items() %}
                 <tr>
-                    <td>{{ key }}</td>
+                    <td>{{ data.id }}</td>
+                    <td>{{ data.key }}</td>
                     <td>{{ data.duration }}</td>
-                    <td>{% if data.activated %}Yes{% else %}No{% endif %}</td>
+                    <td>{{ data.activation_date }}</td>
+                    <td>{% if data.status == 1 %}Yes{% else %}No{% endif %}</td>
                 </tr>
             {% endfor %}
         </tbody>
